@@ -55,7 +55,6 @@ def remove_old_hotspot(name):
 def remove_all_old_hotspots():
     result  = run("nmcli -t -f NAME,TYPE connection show").stdout
     connections = result.split("\n")
-    print(connections)
     for line in connections:
         if ":" in line:
             name, conn_type = line.split(":")
@@ -78,7 +77,7 @@ def cretae_hotspot(ssid, password):
     remove_old_hotspot("MyHotspot")
     run(f"sudo nmcli connection add type wifi ifname wlan0 con-name MyHotspot ssid '{ssid}'")
     run("sudo nmcli connection modify MyHotspot 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared")
-    run(f"sudo nmcli connection modify MyHotspot wifi-sec.key-mgmt wpa-psk wifi-sec.psk '{password}'")
+    run(f"sudo nmcli connection modify MyHotspot wifi-sec.key-mgmt wpa-psk wifi-sec.psk {password}")
     result = run("sudo nmcli connection up MyHotspot")
 
     log(f"Hotspot creation result: {result.stdout} {result.stderr}")
