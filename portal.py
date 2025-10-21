@@ -2,6 +2,28 @@ from flask import Flask, render_template, request
 import subprocess
 import os
 import time
+import logging
+from logging.handlers import RotatingFileHandler
+import time
+
+logFileName="/var/log/wifi_recapture.log"
+
+# Set up rotating log handler
+log_handler = RotatingFileHandler(
+    "wifi_recapture",       # Log file name
+    maxBytes=5_000_000, # 5 MB max size before rotation
+    backupCount=3       # Keep up to 3 old log files
+)
+
+# Set log format and level
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+log_handler.setFormatter(formatter)
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("captive-portal")
+logger.setLevel(logging.INFO)
+logger.addHandler(log_handler)
+logger.info("Starting captive portal...")
 
 def load_env_file(filepath=".env"):
     env_vars = {}
@@ -21,19 +43,9 @@ CAPTURE_SSID = "".join(env.get("CAPTURE_SSID").split(" "))  # remove spaces
 CAPTURE_PASSWORD = env.get("CAPTURE_PASSWORD")
 
 # append logs to a file
-logFileName="/var/log/wifi_recapture.log"
 def log(text):
-    # Create the file if it doesn't exist
-    if not os.path.exists(logFileName):
-        with open(logFileName, "w") as f:
-            f.write("")  # Optionally write something
     # Do the normal logging
-    print(text)
-    with open(logFileName, "a") as f:
-        f.write(f"{time.asctime()}: {text}\n")  
-
-app = Flask(__name__)
-
+    logger.info(text)
 
 def run(command):
     command = command if isinstance(command, list) else command.split(" ")
@@ -53,9 +65,9 @@ def remove_old_hotspot(name):
     connections = result.stdout.strip().split('\n')
     if name in connections:
         subprocess.run(['sudo', 'nmcli', 'connection', 'delete', name])
-        print(f"Deleted connection: {name}")
+        log(f"Deleted connection: {name}")
     else:
-        print(f"No connection named '{name}' found.")
+        log(f"No connection named '{name}' found.")
 
 def remove_all_old_hotspots():
     result  = run("nmcli -t -f NAME,TYPE connection show").stdout
@@ -66,7 +78,7 @@ def remove_all_old_hotspots():
             if conn_type == "wifi":
                 mode = run(f"nmcli -g 802-11-wireless.mode connection show '{name}'")
                 if mode == "ap":
-                    print(f"Deleting hotspot: {name}")
+                    log(f"Deleting hotspot: {name}")
                     subprocess.run(f"sudo nmcli connection delete '{name}'", shell=True)
 
 
@@ -104,15 +116,9 @@ def connect_wifi(ssid, password):
     ssid = request.form['ssid']
     password = request.form['password']
     log(f"Connecting to {ssid}...")
-    # result = subprocess.run(["nmcli", "connection", "add" ,"type", "wifi", "ifname", "wlan1", "autoconnect", "yes", "ssid", ssid, "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password])
+    result = subprocess.run(["nmcli", "connection", "add" ,"type", "wifi", "ifname", "wlan1", "autoconnect", "yes", "ssid", ssid, "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password])
 
-    run(f"sudo nmcli con add type wifi ifname wlan0 con-name Hotspot autoconnect yes ssid {ssid}")
-    run("sudo nmcli con modify Hotspot 802-11-wireless.mode ap 802-11-wireless.band bg")
-    run("sudo nmcli con modify Hotspot ipv4.method shared")
-    run("sudo nmcli con modify Hotspot wifi-sec.key-mgmt wpa-psk")
-    run(f"sudo nmcli con modify Hotspot wifi-sec.psk '{password}'")
-    run("sudo nmcli con up Hotspot")
-
+    time.sleep(5)  # wait for connection to establish
     result = subprocess.run(["iwgetid"], capture_output=True, text=True)
     if ssid in result.stdout:
         log(f"connected to wifi: {result.stdout}")
@@ -121,6 +127,9 @@ def connect_wifi(ssid, password):
         log(f"failed to connect to wifi: {result.stdout}")
         return False, f"failed to connect to wifi: {result.stdout + " " + result.stderr}"
     return result.returncode == 0, result.stdout + result.stderr
+
+# Flask app
+app = Flask(__name__)
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -155,9 +164,13 @@ def android_check():
 def windows_check():
     return "Microsoft NCSI", 200
 
+
+# Start main. This will set up the hotspot first.
+# moved from if __name__ == '__main__' to here so that it runs when started as a service
+os.system('sudo rfkill unblock wifi')
+os.system('sudo nmcli radio wifi on')
+remove_all_old_hotspots()
+cretae_hotspot(CAPTURE_SSID, CAPTURE_PASSWORD)
+
 if __name__ == '__main__':
-    os.system('sudo rfkill unblock wifi')
-    os.system('sudo nmcli radio wifi on')
-    remove_all_old_hotspots()
-    cretae_hotspot(CAPTURE_SSID, CAPTURE_PASSWORD)
     app.run(ssl_context=('cert.pem', 'key.pem'), host='0.0.0.0', port=5000)  

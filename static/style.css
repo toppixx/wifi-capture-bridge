@@ -28,7 +28,7 @@ html {
     }
 
     h1 {
-        font-size: 2.5rem;
+        font-size: 5.5rem;
     }
 
     form {
@@ -64,7 +64,7 @@ html {
 }
 
 * {
-    font-family: 'Comic Sans MS', 'Comic Sans', cursive;
+    font-family: 'Comic Sans MS', 'Comic Sans';
 }
 
 @keyframes rainbowBackground {

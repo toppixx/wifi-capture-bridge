@@ -70,6 +70,7 @@ sudo sysctl -w net.ipv4.ip_forward=1
 
 echo "🧱 Setting up iptables redirect..."
 sudo iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 80 -j REDIRECT --to-port 5000
+sudo iptables -t nat -A PREROUTING -i wlan0 -p tcp --dport 443 -j REDIRECT --to-port 5000
 
 # echo "📡 Creating WPA2 hotspot..."
 # nmcli dev wifi hotspot ifname wlan0 ssid CapturePortal password "HotspotPassword123"
@@ -82,8 +83,10 @@ Description=Captive Portal Flask App
 After=network.target
 
 [Service]
-ExecStart=/bin/bash -c 'cd $APP_DIR && ./wifi_env/bin/python3 -u -m gunicorn --certfile=cert.pem --keyfile=key.pem -b 0.0.0.0:443 portal:app'
+ExecStart=/bin/bash -c 'cd $APP_DIR && ./wifi_env/bin/python3 -u -m gunicorn --certfile=cert.pem --keyfile=key.pem -b 0.0.0.0:5000 portal:app'
 WorkingDirectory=$APP_DIR
+StandardOutput=journal
+StandardError=journal
 Restart=always
 User=$USER
 
@@ -93,8 +96,12 @@ EOF"
 
 sudo systemctl daemon-reexec      # Reloads systemd itself
 sudo systemctl daemon-reload      # Reloads unit files
+sudo systemctl start captive-portal  # Restarts the specific service
 sudo systemctl restart captive-portal  # Restarts the specific service
 
 echo "✅ Setup complete! Connect to 'CapturePortal' and visit any website to access the portal."
+echo ""
 echo "check service by using 'systemctl status captive-portal'"
+echo "or for more detailed logs use 'journalctl -u captive-portal.service -n 100 -f'"
+echo ""
 echo "access your new wifi hotspot with SSID: $CAPTURE_SSID and Password: $CAPTURE_PASSWORD"
