@@ -9,12 +9,13 @@ echo "🔧 Updating system and installing dependencies..."
 sudo apt update
 sudo apt install -y network-manager dnsmasq iptables python3 python3-pip git
 
+
 echo "🔧 Creating virtual environment in $VENV_DIR..."
 python3 -m venv $APP_DIR/$VENV_DIR
 
 echo "🐍 Installing Flask..."
-$APP_DIR/$VENV_DIR/bin/pip3 install flask gunicorn
-
+$APP_DIR/$VENV_DIR/bin/pip install flask
+$APP_DIR/$VENV_DIR/bin/pip install gunicorn
 
 echo "🔐 Installing OpenSSL..."
 sudo apt install openssl
@@ -34,6 +35,23 @@ sudo mkdir -p /etc/NetworkManager/dnsmasq-shared.d
 sudo cp configs/dnsmasq-wlan0.conf /etc/NetworkManager/dnsmasq-shared.d/wlan0.conf
 sudo cp configs/network-manager-dnsmasq.conf /etc/NetworkManager/conf.d/dnsmasq.conf
 sudo sudo systemctl restart NetworkManager
+sudo cp configs/network-manager-dnsmasq.conf /etc/NetworkManager/conf.d/dnsmasq.conf
+CAPTURE_PASSWORD=$(tr -dc 'A-Za-z0-9!@$%^&*_' < /dev/urandom | head -c16)
+CAPTURE_SSID="your_hotspot_name"
+FILE=".env"
+if [ ! -f "$FILE" ]; then
+sudo bash -c "cat <<EOF > $FILE
+CAPTURE_SSID=$CAPTURE_SSID
+CAPTURE_PASSWORD=$CAPTURE_PASSWORD
+EOF"
+else
+    # Load .env file
+    if [ -f .env ]; then
+        source .env
+    fi
+  echo "$FILE already exists. Using existing ones."
+fi
+sudo cp .env $APP_DIR/.env
 
 echo "🔑 Generating self-signed SSL certificate..."
 openssl req -x509 -newkey rsa:2048 -nodes -keyout key.pem -out cert.pem -days 365  -subj "/C=DE/ST=Bayern/L=Muenchen/O=Teddy/CN=localhost"
@@ -73,3 +91,4 @@ sudo systemctl restart captive-portal
 
 echo "✅ Setup complete! Connect to 'CapturePortal' and visit any website to access the portal."
 echo "check service by using 'systemctl status captive-portal'"
+echo "access your new wifi hotspot with SSID: $CAPTURE_SSID and Password: $CAPTURE_PASSWORD"

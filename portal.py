@@ -3,6 +3,23 @@ import subprocess
 import os
 import time
 
+def load_env_file(filepath=".env"):
+    env_vars = {}
+    with open(filepath) as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue  # Skip comments and empty lines
+            if "=" in line:
+                key, value = line.split("=", 1)
+                env_vars[key.strip()] = value.strip()
+    return env_vars
+
+env = load_env_file()
+
+CAPTURE_SSID = env.get("CAPTURE_SSID")
+CAPTURE_PASSWORD = env.get("CAPTURE_PASSWORD")
+
 # append logs to a file
 logFileName="/var/log/wifi_recapture.log"
 def log(text):
@@ -11,33 +28,6 @@ def log(text):
         f.write(f"{time.asctime()}: {text}\n")  
 
 app = Flask(__name__)
-
-# @app.route('/')
-# def index():
-#     result = subprocess.run(['nmcli', '-t', '-f', 'SSID', 'dev', 'wifi'], capture_output=True, text=True)
-#     networks = sorted(set(filter(None, result.stdout.strip().split('\n'))))
-#     return render_template('index.html', networks=networks)
-
-# @app.route('/connect', methods=['POST'])
-# def connect():
-#     os.system('sudo rfkill unblock wifi')
-#     os.system('sudo nmcli radio wifi on')
-#     ssid = request.form['ssid']
-#     password = request.form['password']
-#     log(f"Connecting to {ssid}...")
-#     result = subprocess.run(['nmcli', 'dev', 'wifi', 'connect', ssid, 'password', password, 'ifname', 'wlan1'])
-#     log(f"Connecting to {result.stdout}...")
-
-#     time.sleep(10)
-#     result = subprocess.run(["iwgetid"], capture_output=True, text=True)
-#     if ssid in result.stdout:
-#         log(f"connected to wifi: {result.stdout}")
-#     else:
-#         log(f"failed to connect to wifi: {result.stdout}")
-#     return ssid in result.stdout
-
-# if __name__ == '__main__':
-#     app.run(host='0.0.0.0', port=5000)
 
 
 def run(command):
@@ -62,6 +52,20 @@ def remove_old_hotspot(name):
     else:
         print(f"No connection named '{name}' found.")
 
+def remove_all_old_hotspots():
+    result  = run("nmcli -t -f NAME,TYPE connection show").stdout
+    connections = result.split("\n")
+    print(connections)
+    for line in connections:
+        if ":" in line:
+            name, conn_type = line.split(":")
+            if conn_type == "wifi":
+                mode = run(f"nmcli -g 802-11-wireless.mode connection show '{name}'")
+                if mode == "ap":
+                    print(f"Deleting hotspot: {name}")
+                    subprocess.run(f"sudo nmcli connection delete '{name}'", shell=True)
+
+
 
 def cretae_hotspot(ssid, password):
     log(f"Creating hotspot {ssid}...")
@@ -72,10 +76,10 @@ def cretae_hotspot(ssid, password):
     # result = subprocess.run(['nmcli', 'dev', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', ssid, 'ssid', ssid, 'band', 'bg', 'password', password], capture_output=True, text=True)
     # result = subprocess.run(["nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0", "con-name", "MyHotspot", "autoconnect", "yes", "ssid", ssid, "wifi-mode", "ap", "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password, "ipv4.method", "shared"])
     remove_old_hotspot("MyHotspot")
-    run(f"nmcli connection add type wifi ifname wlan0 con-name MyHotspot ssid {ssid}")
-    run("nmcli connection modify MyHotspot 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared")
-    run(f"nmcli connection modify MyHotspot wifi-sec.key-mgmt wpa-psk wifi-sec.psk {password}")
-    result = run("nmcli connection up MyHotspot")
+    run(f"sudo nmcli connection add type wifi ifname wlan0 con-name MyHotspot ssid '{ssid}'")
+    run("sudo nmcli connection modify MyHotspot 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared")
+    run(f"sudo nmcli connection modify MyHotspot wifi-sec.key-mgmt wpa-psk wifi-sec.psk '{password}'")
+    result = run("sudo nmcli connection up MyHotspot")
 
     log(f"Hotspot creation result: {result.stdout} {result.stderr}")
     if result.stdout and result.stderr:
@@ -150,5 +154,6 @@ def windows_check():
 if __name__ == '__main__':
     os.system('sudo rfkill unblock wifi')
     os.system('sudo nmcli radio wifi on')
-    cretae_hotspot("WiFi_Captive_Portal", "password123")
+    remove_all_old_hotspots()
+    cretae_hotspot(CAPTURE_SSID, CAPTURE_PASSWORD)
     app.run(ssl_context=('cert.pem', 'key.pem'), host='0.0.0.0', port=5000)  
