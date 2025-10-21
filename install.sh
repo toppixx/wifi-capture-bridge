@@ -8,7 +8,9 @@ VENV_DIR="wifi_env"
 echo "🔧 Updating system and installing dependencies..."
 sudo apt update
 sudo apt install -y network-manager dnsmasq iptables python3 python3-pip git
-
+# disable dnsmasq as it will only be used in the NetworkManger that it will host its self
+sudo systemctl stop dnsmasq
+sudo systemctl disable dnsmasq
 
 echo "🔧 Creating virtual environment in $VENV_DIR..."
 python3 -m venv $APP_DIR/$VENV_DIR
@@ -36,11 +38,11 @@ sudo cp configs/dnsmasq-wlan0.conf /etc/NetworkManager/dnsmasq-shared.d/wlan0.co
 sudo cp configs/network-manager-dnsmasq.conf /etc/NetworkManager/conf.d/dnsmasq.conf
 sudo sudo systemctl restart NetworkManager
 sudo cp configs/network-manager-dnsmasq.conf /etc/NetworkManager/conf.d/dnsmasq.conf
-CAPTURE_PASSWORD=$(tr -dc 'A-Za-z0-9!@$%^&*_' < /dev/urandom | head -c16)
+CAPTURE_PASSWORD=$(tr -dc 'A-Za-z0-9' < /dev/urandom | head -c16)
 CAPTURE_SSID="your_hotspot_name"
 FILE=".env"
 if [ ! -f "$FILE" ]; then
-sudo bash -c "cat <<EOF > $FILE
+bash -c "cat <<EOF > $FILE
 CAPTURE_SSID=$CAPTURE_SSID
 CAPTURE_PASSWORD=$CAPTURE_PASSWORD
 EOF"
@@ -48,6 +50,9 @@ else
     # Load .env file
     if [ -f .env ]; then
         source .env
+        CAPTURE_PASSWORD="${CAPTURE_PASSWORD// /}"
+        CAPTURE_SSID="${CAPTURE_SSID// /}"
+
     fi
   echo "$FILE already exists. Using existing ones."
 fi
@@ -86,8 +91,9 @@ User=$USER
 WantedBy=multi-user.target
 EOF"
 
-sudo systemctl enable captive-portal
-sudo systemctl restart captive-portal
+sudo systemctl daemon-reexec      # Reloads systemd itself
+sudo systemctl daemon-reload      # Reloads unit files
+sudo systemctl restart captive-portal  # Restarts the specific service
 
 echo "✅ Setup complete! Connect to 'CapturePortal' and visit any website to access the portal."
 echo "check service by using 'systemctl status captive-portal'"

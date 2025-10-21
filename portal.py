@@ -17,12 +17,17 @@ def load_env_file(filepath=".env"):
 
 env = load_env_file()
 
-CAPTURE_SSID = env.get("CAPTURE_SSID")
+CAPTURE_SSID = "".join(env.get("CAPTURE_SSID").split(" "))  # remove spaces
 CAPTURE_PASSWORD = env.get("CAPTURE_PASSWORD")
 
 # append logs to a file
 logFileName="/var/log/wifi_recapture.log"
 def log(text):
+    # Create the file if it doesn't exist
+    if not os.path.exists(logFileName):
+        with open(logFileName, "w") as f:
+            f.write("")  # Optionally write something
+    # Do the normal logging
     print(text)
     with open(logFileName, "a") as f:
         f.write(f"{time.asctime()}: {text}\n")  
@@ -75,7 +80,7 @@ def cretae_hotspot(ssid, password):
     # result = subprocess.run(['nmcli', 'dev', 'wifi', 'hotspot', 'ifname', 'wlan0', 'con-name', ssid, 'ssid', ssid, 'band', 'bg', 'password', password], capture_output=True, text=True)
     # result = subprocess.run(["nmcli", "connection", "add", "type", "wifi", "ifname", "wlan0", "con-name", "MyHotspot", "autoconnect", "yes", "ssid", ssid, "wifi-mode", "ap", "wifi-sec.key-mgmt", "wpa-psk", "wifi-sec.psk", password, "ipv4.method", "shared"])
     remove_old_hotspot("MyHotspot")
-    run(f"sudo nmcli connection add type wifi ifname wlan0 con-name MyHotspot ssid '{ssid}'")
+    run(f"sudo nmcli connection add type wifi ifname wlan0 con-name MyHotspot ssid {ssid}")
     run("sudo nmcli connection modify MyHotspot 802-11-wireless.mode ap 802-11-wireless.band bg ipv4.method shared")
     run(f"sudo nmcli connection modify MyHotspot wifi-sec.key-mgmt wpa-psk wifi-sec.psk {password}")
     result = run("sudo nmcli connection up MyHotspot")
