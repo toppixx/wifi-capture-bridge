@@ -109,6 +109,9 @@ def cretae_hotspot(ssid, password):
 def scan_wifi():
     result = subprocess.run(['nmcli', '-t', '-f', 'SSID', 'dev', 'wifi'], capture_output=True, text=True)
     networks = sorted(set(filter(None, result.stdout.strip().split('\n'))))
+    if CAPTURE_SSID in networks:
+        networks.remove(CAPTURE_SSID)
+
     log(f"Available networks: {networks}")
     return networks
 

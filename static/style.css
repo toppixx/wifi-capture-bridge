@@ -28,7 +28,7 @@ html {
     }
 
     h1 {
-        font-size: 5.5rem;
+        font-size: 40px;
     }
 
     form {
@@ -39,7 +39,7 @@ html {
     input[type="email"],
     input[type="password"],
     select {
-        font-size: 5rem;
+        font-size: 30px;
     }
 }
 
